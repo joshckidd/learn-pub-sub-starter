@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -12,8 +14,26 @@ func main() {
 	const connectionString string = "amqp://guest:guest@localhost:5672/"
 	fmt.Println("Starting Peril server...")
 
-	con, _ := amqp.Dial(connectionString)
+	con, err := amqp.Dial(connectionString)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 	defer con.Close()
+
+	ch, err := con.Channel()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+		IsPaused: true,
+	})
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
 	fmt.Println("Connection successful!")
 
