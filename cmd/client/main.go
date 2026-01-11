@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -33,9 +32,32 @@ func main() {
 	name := fmt.Sprintf("%s.%s", routing.PauseKey, user)
 	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilDirect, name, routing.PauseKey, pubsub.Transient)
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	<-signalChan
+	gs := gamelogic.NewGameState(user)
 
-	fmt.Println("Stopping Peril server...")
+	for loop := true; loop; {
+		words := gamelogic.GetInput()
+		switch words[0] {
+		case "spawn":
+			err = gs.CommandSpawn(words)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		case "move":
+			_, err = gs.CommandMove(words)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		case "status":
+			gs.CommandStatus()
+		case "help":
+			gamelogic.PrintClientHelp()
+		case "spam":
+			fmt.Println("Spamming not allowed yet!")
+		case "quit":
+			gamelogic.PrintQuit()
+			loop = false
+		default:
+			fmt.Println("I don't understand that command.")
+		}
+	}
 }
