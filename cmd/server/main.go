@@ -29,6 +29,8 @@ func main() {
 
 	fmt.Println("Connection successful!")
 
+	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilTopic, "game_logs", "game_logs.*", pubsub.Durable)
+
 	gamelogic.PrintServerHelp()
 
 	for loop := true; loop; {
