@@ -29,10 +29,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	name := fmt.Sprintf("%s.%s", routing.PauseKey, user)
-	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilDirect, name, routing.PauseKey, pubsub.Transient)
-
 	gs := gamelogic.NewGameState(user)
+	name := fmt.Sprintf("%s.%s", routing.PauseKey, user)
+	err = pubsub.SubscribeJSON(con, routing.ExchangePerilDirect, name, routing.PauseKey, pubsub.Transient, handlerPause(gs))
 
 	for loop := true; loop; {
 		words := gamelogic.GetInput()
@@ -59,5 +58,12 @@ func main() {
 		default:
 			fmt.Println("I don't understand that command.")
 		}
+	}
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
 	}
 }
