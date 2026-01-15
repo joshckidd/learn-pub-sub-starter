@@ -21,6 +21,12 @@ func main() {
 	}
 	defer con.Close()
 
+	ch, err := con.Channel()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
 	fmt.Println("Connection successful!")
 
 	user, err := gamelogic.ClientWelcome()
@@ -30,8 +36,19 @@ func main() {
 	}
 
 	gs := gamelogic.NewGameState(user)
-	name := fmt.Sprintf("%s.%s", routing.PauseKey, user)
-	err = pubsub.SubscribeJSON(con, routing.ExchangePerilDirect, name, routing.PauseKey, pubsub.Transient, handlerPause(gs))
+	pauseKeyName := fmt.Sprintf("%s.%s", routing.PauseKey, user)
+	err = pubsub.SubscribeJSON(con, routing.ExchangePerilDirect, pauseKeyName, routing.PauseKey, pubsub.Transient, handlerPause(gs))
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	moveKeyName := fmt.Sprintf("%s.%s", "army_moves", user)
+	err = pubsub.SubscribeJSON(con, routing.ExchangePerilTopic, moveKeyName, "army_moves.*", pubsub.Transient, handlerMove(gs))
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
 	for loop := true; loop; {
 		words := gamelogic.GetInput()
@@ -42,9 +59,14 @@ func main() {
 				fmt.Println(err.Error())
 			}
 		case "move":
-			_, err = gs.CommandMove(words)
+			move, err := gs.CommandMove(words)
 			if err != nil {
 				fmt.Println(err.Error())
+			}
+			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, moveKeyName, move)
+			if err != nil {
+				fmt.Println(err.Error())
+				os.Exit(1)
 			}
 		case "status":
 			gs.CommandStatus()
@@ -65,5 +87,12 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
 	return func(ps routing.PlayingState) {
 		defer fmt.Print("> ")
 		gs.HandlePause(ps)
+	}
+}
+
+func handlerMove(gs *gamelogic.GameState) func(move gamelogic.ArmyMove) {
+	return func(move gamelogic.ArmyMove) {
+		defer fmt.Print("> ")
+		gs.HandleMove(move)
 	}
 }
