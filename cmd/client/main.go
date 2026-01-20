@@ -50,7 +50,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = pubsub.SubscribeJSON(con, routing.ExchangePerilTopic, "war", "war.*", pubsub.Durable, handlerWar(gs))
+	err = pubsub.SubscribeJSON(con, routing.ExchangePerilTopic, "war", "war.*", pubsub.Durable, handlerWar(gs, ch))
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -123,10 +123,10 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(move gamelogic.
 	}
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.Acktype {
+func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.Acktype {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.Acktype {
 		defer fmt.Print("> ")
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
 
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
@@ -134,8 +134,25 @@ func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeYouWon:
+			logMess := fmt.Sprintf("%s won a war against %s", winner, loser)
+			err := pubsub.PublishGameLog(ch, gs.Player.Username, logMess)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
 			return pubsub.Ack
 		case gamelogic.WarOutcomeOpponentWon:
+			logMess := fmt.Sprintf("%s won a war against %s", winner, loser)
+			err := pubsub.PublishGameLog(ch, gs.Player.Username, logMess)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
+		case gamelogic.WarOutcomeDraw:
+			logMess := fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
+			err := pubsub.PublishGameLog(ch, gs.Player.Username, logMess)
+			if err != nil {
+				return pubsub.NackRequeue
+			}
 			return pubsub.Ack
 		default:
 			fmt.Println("Error processing war outcome.")

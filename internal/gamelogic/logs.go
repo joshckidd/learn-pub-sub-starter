@@ -13,6 +13,11 @@ const logsFile = "game.log"
 
 const writeToDiskSleep = 1 * time.Second
 
+type GameLog struct {
+	Message  string
+	Username string
+}
+
 func WriteLog(gamelog routing.GameLog) error {
 	log.Printf("received game log...")
 	time.Sleep(writeToDiskSleep)
