@@ -30,6 +30,16 @@ func main() {
 	fmt.Println("Connection successful!")
 
 	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilTopic, "game_logs", "game_logs.*", pubsub.Durable)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+
+	err = pubsub.SubscribeGOB(con, routing.ExchangePerilTopic, "game_logs", "game_logs.*", pubsub.Durable, handlerLogs())
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 
 	gamelogic.PrintServerHelp()
 
@@ -62,4 +72,15 @@ func main() {
 		}
 	}
 
+}
+
+func handlerLogs() func(routing.GameLog) pubsub.Acktype {
+	return func(gl routing.GameLog) pubsub.Acktype {
+		defer fmt.Print("> ")
+		err := gamelogic.WriteLog(gl)
+		if err != nil {
+			return pubsub.NackRequeue
+		}
+		return pubsub.Ack
+	}
 }

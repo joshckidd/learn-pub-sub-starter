@@ -6,8 +6,8 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -90,38 +90,44 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType,
 	handler func(T) Acktype,
 ) error {
-	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
-	if err != nil {
-		return err
-	}
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(v []byte) (T, error) {
+			var res T
+			err := json.Unmarshal(v, &res)
+			return res, err
+		},
+	)
+}
 
-	del, err := ch.Consume(queueName, "", false, false, false, false, nil)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for mess := range del {
-			var v T
-			err = json.Unmarshal(mess.Body, &v)
-
-			at := handler(v)
-
-			switch at {
-			case Ack:
-				mess.Ack(false)
-				fmt.Println("Message acknowledged.")
-			case NackRequeue:
-				mess.Nack(false, true)
-				fmt.Println("Message not acknowledged, requeuing.")
-			case NackDiscard:
-				mess.Nack(false, false)
-				fmt.Println("Message not acknowledged, discarding.")
-			}
-
-		}
-	}()
-	return nil
+func SubscribeGOB[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) Acktype,
+) error {
+	return subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		func(v []byte) (T, error) {
+			buf := bytes.NewBuffer(v)
+			dec := gob.NewDecoder(buf)
+			var res T
+			err := dec.Decode(&res)
+			return res, err
+		},
+	)
 }
 
 func PublishGOB[T any](ch *amqp.Channel, exchange, key string, val T) error {
@@ -146,12 +152,54 @@ func PublishGOB[T any](ch *amqp.Channel, exchange, key string, val T) error {
 func PublishGameLog(ch *amqp.Channel, user, val string) error {
 	key := fmt.Sprintf("%s.%s", routing.GameLogSlug, user)
 
-	err := PublishGOB(ch, routing.ExchangePerilTopic, key, gamelogic.GameLog{
-		Message:  val,
-		Username: user,
+	err := PublishGOB(ch, routing.ExchangePerilTopic, key, routing.GameLog{
+		Message:     val,
+		Username:    user,
+		CurrentTime: time.Now(),
 	})
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func subscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	simpleQueueType SimpleQueueType,
+	handler func(T) Acktype,
+	unmarshaller func([]byte) (T, error),
+) error {
+	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
+	if err != nil {
+		return err
+	}
+
+	del, err := ch.Consume(queueName, "", false, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	var res error
+	res = nil
+	go func() {
+		for mess := range del {
+			v, err := unmarshaller(mess.Body)
+			res = err
+			at := handler(v)
+
+			switch at {
+			case Ack:
+				mess.Ack(false)
+			case NackRequeue:
+				mess.Nack(false, true)
+			case NackDiscard:
+				mess.Nack(false, false)
+			}
+
+		}
+	}()
+	return res
 }
