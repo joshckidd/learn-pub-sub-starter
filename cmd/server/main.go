@@ -45,30 +45,32 @@ func main() {
 
 	for loop := true; loop; {
 		words := gamelogic.GetInput()
-		switch words[0] {
-		case "pause":
-			fmt.Println("Pausing game.")
-			err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
-				IsPaused: true,
-			})
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
+		if len(words) > 0 {
+			switch words[0] {
+			case "pause":
+				fmt.Println("Pausing game.")
+				err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+					IsPaused: true,
+				})
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+				}
+			case "resume":
+				fmt.Println("Resuming game.")
+				err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+					IsPaused: false,
+				})
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+				}
+			case "quit":
+				fmt.Println("Stopping Peril server...")
+				loop = false
+			default:
+				fmt.Println("I don't understand that command.")
 			}
-		case "resume":
-			fmt.Println("Resuming game.")
-			err = pubsub.PublishJSON(ch, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
-				IsPaused: false,
-			})
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-		case "quit":
-			fmt.Println("Stopping Peril server...")
-			loop = false
-		default:
-			fmt.Println("I don't understand that command.")
 		}
 	}
 

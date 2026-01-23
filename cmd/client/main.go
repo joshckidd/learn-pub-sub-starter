@@ -59,45 +59,47 @@ func main() {
 
 	for loop := true; loop; {
 		words := gamelogic.GetInput()
-		switch words[0] {
-		case "spawn":
-			err = gs.CommandSpawn(words)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-		case "move":
-			move, err := gs.CommandMove(words)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, moveKeyName, move)
-			if err != nil {
-				fmt.Println(err.Error())
-				os.Exit(1)
-			}
-		case "status":
-			gs.CommandStatus()
-		case "help":
-			gamelogic.PrintClientHelp()
-		case "spam":
-			if len(words) > 1 {
-				x, err := strconv.Atoi(words[1])
+		if len(words) > 0 {
+			switch words[0] {
+			case "spawn":
+				err = gs.CommandSpawn(words)
 				if err != nil {
-					fmt.Println("Invalid spam command.")
-				} else {
-					for range x {
-						ml := gamelogic.GetMaliciousLog()
-						pubsub.PublishGameLog(ch, gs.Player.Username, ml)
-					}
+					fmt.Println(err.Error())
 				}
-			} else {
-				fmt.Println("Invalid spam command.")
+			case "move":
+				move, err := gs.CommandMove(words)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, moveKeyName, move)
+				if err != nil {
+					fmt.Println(err.Error())
+					os.Exit(1)
+				}
+			case "status":
+				gs.CommandStatus()
+			case "help":
+				gamelogic.PrintClientHelp()
+			case "spam":
+				if len(words) > 1 {
+					x, err := strconv.Atoi(words[1])
+					if err != nil {
+						fmt.Println("Invalid spam command.")
+					} else {
+						for range x {
+							ml := gamelogic.GetMaliciousLog()
+							pubsub.PublishGameLog(ch, gs.Player.Username, ml)
+						}
+					}
+				} else {
+					fmt.Println("Invalid spam command.")
+				}
+			case "quit":
+				gamelogic.PrintQuit()
+				loop = false
+			default:
+				fmt.Println("I don't understand that command.")
 			}
-		case "quit":
-			gamelogic.PrintQuit()
-			loop = false
-		default:
-			fmt.Println("I don't understand that command.")
 		}
 	}
 }
